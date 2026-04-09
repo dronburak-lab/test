@@ -12,7 +12,7 @@ export GOOGLE_SERVICE_ACCOUNT_JSON := $(shell cat '$(GOOGLE_CREDENTIALS_FILE)')
 endif
 endif
 
-.PHONY: help run once install
+.PHONY: help run once install now
 
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -25,3 +25,6 @@ once: ## Один проход; креды как у run
 
 install: ## pip install -r requirements.txt
 	cd $(ROOT) && $(PYTHON) -m pip install -r requirements.txt
+
+now: ## Вывести текущее время (Python)
+	cd $(ROOT) && $(PYTHON) scripts/current_time.py
