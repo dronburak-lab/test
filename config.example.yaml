@@ -19,6 +19,9 @@ task_store:
 gerrit:
   target_branch: main
   remote: origin
+  # Gerrit: "refs/for/{target_branch}"  |  GitHub: уникальная ветка, напр. refs/heads/agent/{slug}-{task_id}
+  push_ref_template: "refs/heads/agent/{slug}-{task_id}"
+  push_force_with_lease: false
 
 agent_runner:
   backend: "cursor" # cursor|other

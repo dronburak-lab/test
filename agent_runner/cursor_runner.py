@@ -16,7 +16,11 @@ class CursorRunnerConfig:
     workspace: str
     target_branch: str
     gerrit_remote: str = "origin"
-    push_ref_template: str = "refs/for/{target_branch}"
+    # Gerrit: refs/for/{target_branch}. GitHub: use a unique branch per task, e.g.
+    # refs/heads/agent/{slug}-{task_id} — иначе повторный push в один и тот же ref даёт non-fast-forward.
+    push_ref_template: str = "refs/heads/agent/{slug}-{task_id}"
+    # Если true: git push --force-with-lease (только если осознанно пишете в один ref).
+    push_force_with_lease: bool = False
     # Shell prefix before the shlex-quoted task prompt (headless agent with edits).
     cursor_agent_command_prefix: str = "cursor agent -p --force"
     # Max chars of agent stdout+stderr stored in agent_reply / RunnerResult.summary.
@@ -37,6 +41,17 @@ class CursorRunner:
     def _slug(self, text: str) -> str:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower()).strip("-")
         return slug or "task"
+
+    def _sanitize_task_id(self, task_id: str) -> str:
+        s = re.sub(r"[^a-zA-Z0-9._-]+", "-", (task_id or "").strip()).strip("-")
+        return (s[:64] if s else "task")
+
+    def _format_push_ref(self, task: TaskRecord) -> str:
+        return self.config.push_ref_template.format(
+            target_branch=self.config.target_branch,
+            slug=self._slug(task.title),
+            task_id=self._sanitize_task_id(task.task_id),
+        )
 
     def _truncate(self, text: str) -> str:
         cap = max(256, int(self.config.agent_output_max_chars))
@@ -193,9 +208,10 @@ class CursorRunner:
 
         self._rebase_onto_latest_upstream()
 
-        push_ref = self.config.push_ref_template.format(target_branch=self.config.target_branch)
+        push_ref = self._format_push_ref(task)
         remote = self.config.gerrit_remote
-        push_res = self._run(f"git push {remote} HEAD:{push_ref}")
+        fw = " --force-with-lease" if self.config.push_force_with_lease else ""
+        push_res = self._run(f"git push{fw} {remote} HEAD:{push_ref}")
         if push_res.exit_code != 0:
             raise RuntimeError(push_res.stderr or push_res.stdout)
 

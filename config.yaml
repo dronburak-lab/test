@@ -12,10 +12,14 @@ task_store:
     worksheet_gid: 1970676925
     credentials_json_env: "GOOGLE_SERVICE_ACCOUNT_JSON"
 
-# target_branch — для push в Gerrit; rebase берёт ветку с remote автоматически (HEAD, затем target_branch, main, master)
+# target_branch — база для rebase; remote — куда push (имя из git remote -v).
+# push_ref_template: на GitHub не используйте refs/for/... (это не Gerrit) — иначе non-fast-forward на один и тот же ref.
+# Плейсхолдеры: {target_branch}, {slug}, {task_id}
 gerrit:
   target_branch: main
   remote: origin
+  push_ref_template: "refs/heads/agent/{slug}-{task_id}"
+  push_force_with_lease: false
 
 agent_runner:
   backend: "cursor" # cursor|other

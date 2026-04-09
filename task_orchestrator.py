@@ -94,11 +94,16 @@ def run_loop(config: dict[str, Any], once: bool = False, config_dir: Path | None
     policy = build_policy(config, workspace=workspace)
     ar = config.get("agent_runner", {})
     ca = ar.get("cursor_agent", {})
+    gerrit = config.get("gerrit", {})
     runner = CursorRunner(
         CursorRunnerConfig(
             workspace=workspace,
-            target_branch=config.get("gerrit", {}).get("target_branch", "main"),
-            gerrit_remote=config.get("gerrit", {}).get("remote", "origin"),
+            target_branch=gerrit.get("target_branch", "main"),
+            gerrit_remote=gerrit.get("remote", "origin"),
+            push_ref_template=str(
+                gerrit.get("push_ref_template", "refs/heads/agent/{slug}-{task_id}")
+            ),
+            push_force_with_lease=bool(gerrit.get("push_force_with_lease", False)),
             cursor_agent_command_prefix=str(
                 ca.get("command_prefix", "cursor agent -p --force")
             ),
