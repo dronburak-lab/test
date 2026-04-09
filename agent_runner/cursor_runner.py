@@ -146,6 +146,19 @@ class CursorRunner:
             "(see `git remote -v`), and `gerrit.target_branch` to an existing branch name."
         )
 
+    def _rebase_onto_latest_upstream(self) -> None:
+        """Rebase current branch onto latest remote base so push is fast-forward."""
+        res = self._run("git fetch --all --prune")
+        if res.exit_code != 0:
+            raise RuntimeError(res.stderr or res.stdout)
+        base_ref = self._resolve_rebase_upstream()
+        res = self._run(f"git rebase {base_ref}")
+        if res.exit_code != 0:
+            raise RuntimeError(
+                f"git rebase {base_ref!r} failed before push (конфликты или история разошлась): "
+                f"{res.stderr or res.stdout}"
+            )
+
     def _prepare_branch(self, task: TaskRecord) -> None:
         branch_name = f"agent/{self._slug(task.title)}"
         res = self._run("git fetch --all --prune")
@@ -178,9 +191,11 @@ class CursorRunner:
             raise RuntimeError(hash_res.stderr or hash_res.stdout)
         commit_hash = hash_res.stdout.strip()
 
+        self._rebase_onto_latest_upstream()
+
         push_ref = self.config.push_ref_template.format(target_branch=self.config.target_branch)
-        # push_res = self._run(f"git push {self.config.gerrit_remote} HEAD:{push_ref}")
-        push_res = self._run(f"git push origin HEAD")
+        remote = self.config.gerrit_remote
+        push_res = self._run(f"git push {remote} HEAD:{push_ref}")
         if push_res.exit_code != 0:
             raise RuntimeError(push_res.stderr or push_res.stdout)
 
