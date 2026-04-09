@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
+import shlex
 
 from automation.agent_runner.base import RunnerResult
 from automation.policy_guard import PolicyGuard
@@ -16,6 +17,10 @@ class CursorRunnerConfig:
     target_branch: str
     gerrit_remote: str = "origin"
     push_ref_template: str = "refs/for/{target_branch}"
+    # Shell prefix before the shlex-quoted task prompt (headless agent with edits).
+    cursor_agent_command_prefix: str = "cursor agent -p --force"
+    # Max chars of agent stdout+stderr stored in agent_reply / RunnerResult.summary.
+    agent_output_max_chars: int = 8000
 
 
 class CursorRunner:
@@ -32,6 +37,46 @@ class CursorRunner:
     def _slug(self, text: str) -> str:
         slug = re.sub(r"[^a-zA-Z0-9]+", "-", text.strip().lower()).strip("-")
         return slug or "task"
+
+    def _truncate(self, text: str) -> str:
+        cap = max(256, int(self.config.agent_output_max_chars))
+        if len(text) <= cap:
+            return text
+        return text[: cap - 3] + "..."
+
+    def _build_prompt(self, task: TaskRecord, feedback: str | None) -> str:
+        parts = [
+            "You are working in this git repository checkout. Follow the instructions exactly.",
+            "",
+            f"Title: {task.title.strip()}",
+            "",
+            "Description:",
+            task.description.strip() or "(empty)",
+        ]
+        if feedback and feedback.strip():
+            parts.extend(["", "Additional feedback from the reviewer:", feedback.strip()])
+        return "\n".join(parts)
+
+    def _run_agent_for_description(self, task: TaskRecord, feedback: str | None) -> str:
+        prefix = (self.config.cursor_agent_command_prefix or "").strip()
+        if not prefix:
+            raise RuntimeError(
+                "agent_runner.cursor_agent.command_prefix is empty; set a non-empty value "
+                "(e.g. cursor agent -p --force) to run the task description."
+            )
+        prompt = self._build_prompt(task, feedback)
+        print(
+            f"[cursor-runner] Запуск агента по description ({len(prompt)} символов в промпте).",
+            flush=True,
+        )
+        cmd = f"{prefix} {shlex.quote(prompt)}"
+        res = self._run(cmd)
+        log = (res.stdout or "") + (res.stderr or "")
+        if res.exit_code != 0:
+            raise RuntimeError(
+                f"Agent command failed (exit {res.exit_code}): {self._truncate(log)}"
+            )
+        return log
 
     def _list_remote_branch_refs(self, remote: str) -> list[str]:
         res = self._run(f"git for-each-ref --format=%(refname:short) refs/remotes/{remote}/")
@@ -116,12 +161,17 @@ class CursorRunner:
                 raise RuntimeError(res.stderr or res.stdout)
 
     def _commit_and_push(self, task: TaskRecord) -> tuple[str, str]:
-        commit_msg = f"task: {task.title[:72]}"
-        cmd_commit = f'git commit -am "{commit_msg}" || true'
-        for cmd in [cmd_commit]:
+        safe_title = task.title[:72].replace("\n", " ").strip()
+        commit_msg = f"task: {safe_title}"
+        for cmd in [
+            "git add -A",
+            f"git commit -m {shlex.quote(commit_msg)}",
+        ]:
             res = self._run(cmd)
             if res.exit_code != 0:
-                raise RuntimeError(res.stderr or res.stdout)
+                raise RuntimeError(
+                    f"git failed after agent ({cmd!r}): {res.stderr or res.stdout}"
+                )
 
         hash_res = self._run("git rev-parse HEAD")
         if hash_res.exit_code != 0:
@@ -143,10 +193,12 @@ class CursorRunner:
 
     def start_task(self, task: TaskRecord) -> RunnerResult:
         self._prepare_branch(task)
+        agent_log = self._run_agent_for_description(task, None)
         commit_hash, change_id = self._commit_and_push(task)
+        summary = self._truncate(agent_log.strip() or "Task completed (no agent output).")
         return RunnerResult(
             success=True,
-            summary="Task step completed",
+            summary=summary,
             commit_hash=commit_hash,
             gerrit_change_id=change_id,
             status=TaskStatus.ON_REVIEW.value,
@@ -154,10 +206,12 @@ class CursorRunner:
 
     def continue_task(self, task: TaskRecord, comment: str) -> RunnerResult:
         self._prepare_branch(task)
+        agent_log = self._run_agent_for_description(task, comment)
         commit_hash, change_id = self._commit_and_push(task)
+        summary = self._truncate(agent_log.strip() or f"Feedback processed: {comment}")
         return RunnerResult(
             success=True,
-            summary=f"Feedback processed: {comment}",
+            summary=summary,
             commit_hash=commit_hash,
             gerrit_change_id=change_id,
             status=TaskStatus.ON_REVIEW.value,

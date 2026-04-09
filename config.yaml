@@ -19,6 +19,10 @@ gerrit:
 
 agent_runner:
   backend: "cursor" # cursor|other
+  cursor_agent:
+    # Оболочка перед промптом (в кавычках после shlex): выполняется description задачи в рабочей копии.
+    command_prefix: "cursor agent -p --force"
+    agent_output_max_chars: 8000
 
 tools_provider:
   backend: "local" # local|mcp
@@ -45,6 +49,7 @@ policy:
   allowed_command_prefixes:
     - "git "
     - "python "
+    - "cursor "
   blocked_commands:
     - "rm -rf"
     - "git reset --hard"

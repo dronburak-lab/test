@@ -92,11 +92,17 @@ def run_loop(config: dict[str, Any], once: bool = False, config_dir: Path | None
     task_store = build_task_store(config, config_dir=config_dir)
     tools = build_tools_provider(config)
     policy = build_policy(config, workspace=workspace)
+    ar = config.get("agent_runner", {})
+    ca = ar.get("cursor_agent", {})
     runner = CursorRunner(
         CursorRunnerConfig(
             workspace=workspace,
             target_branch=config.get("gerrit", {}).get("target_branch", "main"),
             gerrit_remote=config.get("gerrit", {}).get("remote", "origin"),
+            cursor_agent_command_prefix=str(
+                ca.get("command_prefix", "cursor agent -p --force")
+            ),
+            agent_output_max_chars=int(ca.get("agent_output_max_chars", 8000)),
         ),
         tools=tools,
         policy=policy,
@@ -122,6 +128,11 @@ def run_loop(config: dict[str, Any], once: bool = False, config_dir: Path | None
                     expected_version=0,
                 )
             claimed = task_store.claim_task(task.task_id, expected_version=0)
+            print(
+                f"[orchestrator] Начало выполнения задачи: id={claimed.task_id!r}, "
+                f"title={claimed.title!r}",
+                flush=True,
+            )
             try:
                 if task.status == TaskStatus.ON_REVIEW:
                     result = runner.continue_task(claimed, claimed.comment_from_user)
