@@ -1,0 +1,7 @@
+# Минимум для локального Excel + оркестратора
+pyyaml>=6.0
+openpyxl>=3.1.0
+
+# Нужны для task_store.backend: google_sheets
+google-api-python-client>=2.0.0
+google-auth>=2.0.0

@@ -1,0 +1,54 @@
+orchestrator:
+  poll_interval_seconds: 15
+  max_active_tasks: 1
+  lock_file: ".agent-orchestrator.lock"
+  dry_run: false
+
+task_store:
+  backend: "excel" # google_sheets|excel (Sheets: pip install google-api-python-client google-auth)
+  excel:
+    # Path relative to this config file directory
+    file_path: "tasks.xlsx"
+    sheet_name: "tasks"
+  google_sheets:
+    spreadsheet_id: "1AbCdEf..."
+    worksheet_name: "tasks"
+    worksheet_gid: null
+    credentials_json_env: "GOOGLE_SERVICE_ACCOUNT_JSON"
+
+gerrit:
+  target_branch: main
+  remote: origin
+
+agent_runner:
+  backend: "cursor" # cursor|other
+
+tools_provider:
+  backend: "local" # local|mcp
+  mcp:
+    server: "http://localhost:3000"
+    timeout_seconds: 30
+
+policy:
+  allow_network: false
+  allowed_paths:
+    - "."
+  blocked_paths:
+    - "/"
+    - "/etc"
+    - "/usr"
+  allowed_commands:
+    - "git status"
+    - "git add"
+    - "git commit"
+    - "git push"
+    - "git switch"
+    - "git worktree"
+    - "python -m pytest"
+  allowed_command_prefixes:
+    - "git "
+    - "python "
+  blocked_commands:
+    - "rm -rf"
+    - "git reset --hard"
+    - "sudo "
