@@ -179,7 +179,8 @@ class CursorRunner:
         commit_hash = hash_res.stdout.strip()
 
         push_ref = self.config.push_ref_template.format(target_branch=self.config.target_branch)
-        push_res = self._run(f"git push {self.config.gerrit_remote} HEAD:{push_ref}")
+        # push_res = self._run(f"git push {self.config.gerrit_remote} HEAD:{push_ref}")
+        push_res = self._run(f"git push origin HEAD")
         if push_res.exit_code != 0:
             raise RuntimeError(push_res.stderr or push_res.stdout)
 
