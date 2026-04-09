@@ -192,6 +192,10 @@ class CursorRunner:
         return ""
 
     def start_task(self, task: TaskRecord) -> RunnerResult:
+        print(
+            f"[cursor-runner] Начало выполнения задачи: id={task.task_id!r}, title={task.title!r}",
+            flush=True,
+        )
         self._prepare_branch(task)
         agent_log = self._run_agent_for_description(task, None)
         commit_hash, change_id = self._commit_and_push(task)
@@ -205,6 +209,11 @@ class CursorRunner:
         )
 
     def continue_task(self, task: TaskRecord, comment: str) -> RunnerResult:
+        print(
+            f"[cursor-runner] Начало выполнения задачи (продолжение): id={task.task_id!r}, "
+            f"title={task.title!r}",
+            flush=True,
+        )
         self._prepare_branch(task)
         agent_log = self._run_agent_for_description(task, comment)
         commit_hash, change_id = self._commit_and_push(task)
