@@ -25,6 +25,3 @@ once: ## Один проход; креды как у run
 
 install: ## pip install -r requirements.txt
 	cd $(ROOT) && $(PYTHON) -m pip install -r requirements.txt
-
-now: ## Вывести текущее время (Python)
-	cd $(ROOT) && $(PYTHON) scripts/current_time.py
